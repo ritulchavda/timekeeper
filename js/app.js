@@ -10,15 +10,18 @@ const App = {
   ══════════════════════════════════════ */
 
   async init() {
-    // 1. Seed localStorage defaults first (so app works offline too)
-    DB.init();
-
-    // 2. If GitHub is configured, pull latest .txt files into localStorage
+    // 1. Pull from GitHub FIRST — before any local writes.
+    //    If we called DB.init() first on an empty localStorage it would
+    //    create a fresh default admin and immediately overwrite the real
+    //    data sitting in the .txt files.
     if (GitHub.isConfigured()) {
       this._showSyncSpinner('Syncing with GitHub…');
       await GitHub.loadAll();
-      DB.init(); // re-check in case GitHub had fresh data
     }
+
+    // 2. Fill in any missing collections (only runs if localStorage is still empty,
+    //    meaning GitHub also had no data yet — first-ever launch).
+    DB.init();
 
     // 3. Navigate
     const user = Auth.getCurrentUser();

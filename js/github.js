@@ -122,7 +122,9 @@ const GitHub = {
         return true;
       }
 
-      // Surface the error so the warning toast is meaningful
+      // Surface specific errors for actionable toasts
+      if (res.status === 403) return 'permission';
+      if (res.status === 401) return 'auth';
       const errText = await res.text().catch(() => res.status);
       console.warn(`[GitHub] writeFile ${filename} → ${res.status}:`, errText);
       return false;

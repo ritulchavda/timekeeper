@@ -621,11 +621,25 @@ const Views = {
         and <code>data/disputes.txt</code> in your GitHub repo via the GitHub API.
       </p>
 
-      <div class="alert alert-info" style="margin-bottom:24px;font-size:.83rem">
-        Create a <strong>Personal Access Token</strong> at
-        <strong>github.com → Settings → Developer settings → Personal access tokens → Fine-grained</strong>
-        with <strong>Contents: Read &amp; write</strong> permission on this repo.
-        The token is stored encrypted in your browser only.
+      <div style="margin-bottom:24px">
+        <div class="alert alert-info" style="font-size:.83rem;margin-bottom:12px;flex-direction:column;align-items:flex-start;gap:10px">
+          <div><strong>Option A — Classic token (easiest)</strong></div>
+          <ol style="padding-left:18px;line-height:1.9;font-size:.82rem">
+            <li>Go to <strong>github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</strong></li>
+            <li>Click <strong>Generate new token (classic)</strong></li>
+            <li>Tick the <strong><code>repo</code></strong> scope (top checkbox)</li>
+            <li>Generate &amp; copy the token — paste it below</li>
+          </ol>
+        </div>
+        <div class="alert alert-info" style="font-size:.83rem;flex-direction:column;align-items:flex-start;gap:10px">
+          <div><strong>Option B — Fine-grained token</strong></div>
+          <ol style="padding-left:18px;line-height:1.9;font-size:.82rem">
+            <li>Go to <strong>Personal access tokens → Fine-grained tokens → Generate new token</strong></li>
+            <li>Set <strong>Repository access</strong> → Only select repositories → pick <strong>${GitHub.getConfig()?.repo || 'your repo'}</strong></li>
+            <li>Under <strong>Repository permissions</strong> set <strong>Contents → Read and write</strong></li>
+            <li>Generate &amp; copy the token — paste it below</li>
+          </ol>
+        </div>
       </div>
 
       <div class="card" style="max-width:500px">

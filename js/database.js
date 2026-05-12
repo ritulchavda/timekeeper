@@ -24,8 +24,14 @@ const DB = {
     // Background sync → GitHub txt file
     const file = this.FILES[key];
     if (file && typeof GitHub !== 'undefined' && GitHub.isConfigured()) {
-      GitHub.writeFile(file, encrypted).then(ok => {
-        if (!ok && typeof App !== 'undefined') {
+      GitHub.writeFile(file, encrypted).then(result => {
+        if (result === true) return;
+        if (typeof App === 'undefined') return;
+        if (result === 'permission') {
+          App.toast('GitHub 403 — token missing Contents write permission. See Settings.', 'error');
+        } else if (result === 'auth') {
+          App.toast('GitHub 401 — token invalid or expired. Check Settings.', 'error');
+        } else {
           App.toast('GitHub sync failed — data saved locally.', 'warning');
         }
       }).catch(() => {
