@@ -79,10 +79,19 @@ const GitHub = {
   async writeFile(filename, content) {
     if (!this.isConfigured()) return false;
     try {
-      const sha  = this._getSha(filename);
+      // GitHub requires the file's current SHA to update an existing file.
+      // If we don't have it cached, fetch it first (handles fresh page loads
+      // and the initial '[]' placeholder files in the repo).
+      let sha = this._getSha(filename);
+      if (!sha) {
+        await this.readFile(filename);   // populates SHA cache as a side-effect
+        sha = this._getSha(filename);
+      }
+
+      const encoded = btoa(content);    // CryptoJS output is ASCII — safe for btoa
       const body = {
         message: `[TimeKeeper] update ${filename}`,
-        content: btoa(content)           // content is a CryptoJS ASCII string — safe for btoa
+        content: encoded
       };
       if (sha) body.sha = sha;
 
@@ -92,10 +101,9 @@ const GitHub = {
         body:    JSON.stringify(body)
       });
 
-      // 409 = stale SHA (concurrent write). Re-fetch SHA and retry once.
+      // 409 = stale SHA (another client wrote first). Re-fetch and retry once.
       if (res.status === 409) {
-        const fresh = await this.readFile(filename);
-        if (fresh === null) return false;
+        await this.readFile(filename);
         const body2 = { ...body, sha: this._getSha(filename) };
         const res2  = await fetch(this._apiUrl(filename), {
           method: 'PUT', headers: this._headers(), body: JSON.stringify(body2)
@@ -113,9 +121,13 @@ const GitHub = {
         this._setSha(filename, j.content?.sha);
         return true;
       }
+
+      // Surface the error so the warning toast is meaningful
+      const errText = await res.text().catch(() => res.status);
+      console.warn(`[GitHub] writeFile ${filename} → ${res.status}:`, errText);
       return false;
     } catch (e) {
-      console.warn('[GitHub] writeFile failed:', filename, e);
+      console.warn('[GitHub] writeFile error:', filename, e);
       return false;
     }
   },
@@ -169,6 +181,10 @@ const GitHub = {
       'tk_doc_logs':     'logs.txt',
       'tk_doc_disputes': 'disputes.txt'
     };
+    // Pre-fetch SHAs for all files so writeFile doesn't need a second round-trip
+    for (const file of Object.values(map)) {
+      await this.readFile(file);
+    }
     const results = [];
     for (const [lsKey, file] of Object.entries(map)) {
       const content = localStorage.getItem(lsKey);
