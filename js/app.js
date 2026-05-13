@@ -321,6 +321,124 @@ const App = {
   },
 
   /* ══════════════════════════════════════
+     ADMIN — Edit / Delete log
+  ══════════════════════════════════════ */
+
+  openEditLog(logId) {
+    const log   = DB.getLogById(logId);
+    const users = DB.getUsers();
+    if (!log) { this.toast('Entry not found.', 'error'); return; }
+    this.openModal('Edit Time Entry', Views.editLogModal(log, users));
+  },
+
+  saveEditLog(logId) {
+    const log    = DB.getLogById(logId);
+    const dateVal = document.getElementById('edit-date').value;
+    const inVal   = document.getElementById('edit-in').value;
+    const outVal  = document.getElementById('edit-out').value;
+    const note    = document.getElementById('edit-note').value.trim();
+    const errEl   = document.getElementById('edit-log-error');
+    errEl.innerHTML = '';
+
+    if (!dateVal) { errEl.innerHTML = '<div class="form-error">Date is required.</div>'; return; }
+    if (!inVal)   { errEl.innerHTML = '<div class="form-error">Clock-in time is required.</div>'; return; }
+
+    const clockIn  = new Date(`${dateVal}T${inVal}`);
+    if (isNaN(clockIn.getTime())) { errEl.innerHTML = '<div class="form-error">Invalid clock-in time.</div>'; return; }
+
+    let clockOut = null;
+    let duration = null;
+    if (outVal) {
+      clockOut = new Date(`${dateVal}T${outVal}`);
+      if (isNaN(clockOut.getTime())) { errEl.innerHTML = '<div class="form-error">Invalid clock-out time.</div>'; return; }
+      if (clockOut <= clockIn)       { errEl.innerHTML = '<div class="form-error">Clock-out must be after clock-in.</div>'; return; }
+      duration = Math.round((clockOut - clockIn) / 60000);
+    }
+
+    log.clockIn    = clockIn.toISOString();
+    log.clockOut   = clockOut ? clockOut.toISOString() : log.clockOut;
+    log.duration   = duration !== null ? duration : log.duration;
+    log.modified   = true;
+    log.manualNote = note || log.manualNote || null;
+    log.editedBy   = Auth.getCurrentUser()?.id || null;
+    log.editedAt   = new Date().toISOString();
+    DB.saveLog(log);
+
+    this.closeModal();
+    this.toast('Time entry updated.', 'success');
+    this.navigateTo('admin', { tab: 'logs' });
+  },
+
+  deleteLog(logId) {
+    const log  = DB.getLogById(logId);
+    const user = DB.getUserById(log?.userId);
+    if (!log) { this.toast('Entry not found.', 'error'); return; }
+    if (!confirm(`Delete this entry for ${user?.name || 'this employee'} on ${Utils.formatDateShort(log.clockIn)}? This cannot be undone.`)) return;
+
+    const logs    = DB.getLogs().filter(l => l.id !== logId);
+    const disputes = DB.getDisputes().filter(d => d.logId !== logId);
+    DB.write(DB.K.LOGS, logs);
+    DB.write(DB.K.DISPUTES, disputes);
+
+    this.toast('Entry deleted.', 'info');
+    this.navigateTo('admin', { tab: 'logs' });
+  },
+
+  /* ══════════════════════════════════════
+     ADMIN — Manual entry
+  ══════════════════════════════════════ */
+
+  openAddManualEntry() {
+    const users = DB.getUsers();
+    this.openModal('Add Time Entry', Views.addManualEntryModal(users));
+  },
+
+  addManualEntry() {
+    const userId  = document.getElementById('manual-user').value;
+    const dateVal = document.getElementById('manual-date').value;
+    const inVal   = document.getElementById('manual-in').value;
+    const outVal  = document.getElementById('manual-out').value;
+    const note    = document.getElementById('manual-note').value.trim();
+    const errEl   = document.getElementById('manual-entry-error');
+    errEl.innerHTML = '';
+
+    if (!userId)  { errEl.innerHTML = '<div class="form-error">Please select an employee.</div>'; return; }
+    if (!dateVal) { errEl.innerHTML = '<div class="form-error">Please select a date.</div>'; return; }
+    if (!inVal)   { errEl.innerHTML = '<div class="form-error">Clock-in time is required.</div>'; return; }
+    if (!outVal)  { errEl.innerHTML = '<div class="form-error">Clock-out time is required.</div>'; return; }
+
+    const clockIn  = new Date(`${dateVal}T${inVal}`);
+    const clockOut = new Date(`${dateVal}T${outVal}`);
+
+    if (isNaN(clockIn.getTime()))  { errEl.innerHTML = '<div class="form-error">Invalid clock-in time.</div>'; return; }
+    if (isNaN(clockOut.getTime())) { errEl.innerHTML = '<div class="form-error">Invalid clock-out time.</div>'; return; }
+    if (clockOut <= clockIn)       { errEl.innerHTML = '<div class="form-error">Clock-out must be after clock-in.</div>'; return; }
+
+    const today = new Date(); today.setHours(23,59,59,999);
+    if (clockIn > today) { errEl.innerHTML = '<div class="form-error">Cannot add entries for future dates.</div>'; return; }
+
+    const duration = Math.round((clockOut - clockIn) / 60000);
+
+    DB.saveLog({
+      id:          DB.newId(),
+      userId,
+      clockIn:     clockIn.toISOString(),
+      clockOut:    clockOut.toISOString(),
+      duration,
+      modified:    false,
+      manualEntry: true,
+      manualNote:  note || null,
+      addedBy:     Auth.getCurrentUser()?.id || null,
+      addedAt:     new Date().toISOString()
+    });
+
+    const user = DB.getUserById(userId);
+    this.closeModal();
+    this.toast(`Entry added for ${user?.name} — ${Utils.formatDuration(duration)}.`, 'success');
+    this.navigateTo('admin', { tab: 'logs' });
+  },
+
+  /* ══════════════════════════════════════
      GITHUB SETTINGS
   ══════════════════════════════════════ */
 

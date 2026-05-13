@@ -263,15 +263,19 @@ const Views = {
   /* ── Admin Tab: Logs ──────────────────── */
 
   _adminLogsTab(logs, users) {
+    const employees = users.filter(u => u.role !== 'admin');
     const sorted = [...logs].sort((a,b) => new Date(b.clockIn)-new Date(a.clockIn));
     return `
     <div>
-      <div class="section-header" style="margin-bottom:16px"><h2>All Time Logs</h2></div>
+      <div class="section-header" style="margin-bottom:16px">
+        <h2>All Time Logs</h2>
+        <button class="btn btn-primary btn-sm" onclick="App.openAddManualEntry()">+ Add Entry</button>
+      </div>
       ${sorted.length === 0
         ? `<div class="table-wrap"><div class="empty-state">No time logs yet.</div></div>`
         : `<div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Employee</th><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Employee</th><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Notes</th><th></th></tr></thead>
               <tbody>
                 ${sorted.map(log => {
                   const u = users.find(u => u.id === log.userId);
@@ -286,13 +290,104 @@ const Views = {
                     <td>${Utils.formatTime(log.clockIn)}</td>
                     <td>${log.clockOut ? Utils.formatTime(log.clockOut) : '<span class="badge badge-active">Active</span>'}</td>
                     <td>${log.clockOut ? Utils.formatDuration(log.duration) : '—'}</td>
-                    <td>${log.modified ? '<span class="badge badge-modified">Modified</span>' : ''}</td>
+                    <td>
+                      ${log.manualEntry ? '<span class="badge badge-manual">Manual</span>' : ''}
+                      ${log.modified ? '<span class="badge badge-modified">Modified</span>' : ''}
+                    </td>
+                    <td class="td-actions">
+                      <div class="dropdown-actions">
+                        <button class="btn btn-outline btn-sm" onclick="App.openEditLog('${log.id}')">Edit</button>
+                        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="App.deleteLog('${log.id}')">Delete</button>
+                      </div>
+                    </td>
                   </tr>`;
                 }).join('')}
               </tbody>
             </table>
           </div>`
       }
+    </div>`;
+  },
+
+  /* ── Modal: Add Manual Entry ──────────── */
+
+  addManualEntryModal(users) {
+    const employees = users.filter(u => u.role !== 'admin');
+    const today = Utils.todayStr();
+    return `
+    <div class="form-stack">
+      <div class="alert alert-info" style="font-size:.82rem">
+        Add a past time entry on behalf of an employee. Both clock-in and clock-out are required.
+      </div>
+      <div class="field-group">
+        <label class="field-label">Employee</label>
+        <select class="field-input" id="manual-user">
+          <option value="">— Select employee —</option>
+          ${employees.map(u => `<option value="${u.id}">${Utils.esc(u.name)} (${Utils.esc(u.username)})</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Date</label>
+        <input class="field-input" type="date" id="manual-date" max="${today}" value="${today}">
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">Clock In</label>
+          <input class="field-input" type="time" id="manual-in" value="09:00">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Clock Out</label>
+          <input class="field-input" type="time" id="manual-out" value="17:00">
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Note <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input class="field-input" type="text" id="manual-note" placeholder="e.g. Forgot to clock in">
+      </div>
+      <div id="manual-entry-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="App.closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="App.addManualEntry()">Add Entry</button>
+    </div>`;
+  },
+
+  /* ── Modal: Edit Log Entry ───────────── */
+
+  editLogModal(log, users) {
+    const u       = users.find(u => u.id === log.userId);
+    const dateStr = log.clockIn.slice(0, 10);
+    const inTime  = log.clockIn.slice(11, 16);
+    const outTime = log.clockOut ? log.clockOut.slice(11, 16) : '';
+    return `
+    <div class="form-stack">
+      <div class="alert alert-info" style="font-size:.82rem">
+        Editing entry for <strong>${Utils.esc(u?.name || 'Unknown')}</strong>.
+        Changes are saved immediately and marked as modified.
+      </div>
+      <div class="field-group">
+        <label class="field-label">Date</label>
+        <input class="field-input" type="date" id="edit-date" value="${dateStr}" max="${Utils.todayStr()}">
+      </div>
+      <div class="form-row">
+        <div class="field-group">
+          <label class="field-label">Clock In</label>
+          <input class="field-input" type="time" id="edit-in" value="${inTime}">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Clock Out</label>
+          <input class="field-input" type="time" id="edit-out" value="${outTime}" ${!log.clockOut ? 'placeholder="Still active"' : ''}>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Note <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input class="field-input" type="text" id="edit-note" value="${Utils.esc(log.manualNote || '')}" placeholder="Reason for edit">
+      </div>
+      <div id="edit-log-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="App.closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="App.saveEditLog('${log.id}')">Save Changes</button>
     </div>`;
   },
 
