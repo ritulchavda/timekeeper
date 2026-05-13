@@ -93,6 +93,11 @@ const Views = {
             </div>
           </div>` : ''}
 
+          <!-- Weekly Hours -->
+          <div class="section">
+            ${this._weeklyCard(logs)}
+          </div>
+
           <!-- Time Entries -->
           <div class="section">
             <div class="section-header">
@@ -205,9 +210,15 @@ const Views = {
         ? `<div class="table-wrap"><div class="empty-state"><div class="empty-state-icon">○</div>No employees yet. Add one to get started.</div></div>`
         : `<div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Employee</th><th>Username</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+              <thead><tr><th>Employee</th><th>Username</th><th>Status</th><th>This Week</th><th>Joined</th><th></th></tr></thead>
               <tbody>
-                ${users.map(u => `
+                ${users.map(u => {
+                  const uLogs   = DB.getLogsForUser(u.id);
+                  const weekMin = Utils.getWeekTotalMinutes(uLogs);
+                  const wStatus = Utils.weekStatus(weekMin);
+                  const wColors = { normal:'var(--secondary)', caution:'var(--accent)', warning:'var(--orange)', exceeded:'var(--red)' };
+                  const wIcons  = { normal:'', caution:'', warning:'⚠ ', exceeded:'⚠ ' };
+                  return `
                 <tr>
                   <td>
                     <div class="user-cell">
@@ -215,13 +226,21 @@ const Views = {
                       <div>
                         <div class="user-cell-name">${Utils.esc(u.name)}</div>
                         ${DB.getActiveLog(u.id)
-                          ? `<div style="display:flex;align-items:center;gap:5px;margin-top:2px"><div class="status-dot active" style="width:6px;height:6px"></div><span style="font-size:.72rem;color:var(--green)">Working</span></div>`
+                          ? `<div style="display:flex;align-items:center;gap:5px;margin-top:2px"><div class="status-dot active" style="width:6px;height:6px"></div><span style="font-size:.72rem;color:var(--green)">Working now</span></div>`
                           : ''}
                       </div>
                     </div>
                   </td>
                   <td class="td-muted text-sm">${Utils.esc(u.username)}</td>
                   <td><span class="badge ${u.active?'badge-active':'badge-inactive'}">${u.active?'Active':'Inactive'}</span></td>
+                  <td>
+                    <span style="font-size:.82rem;font-weight:600;color:${wColors[wStatus]}">
+                      ${wIcons[wStatus]}${weekMin > 0 ? Utils.formatDuration(weekMin) : '—'}
+                    </span>
+                    ${wStatus==='warning'||wStatus==='exceeded'
+                      ? `<div style="font-size:.7rem;color:${wColors[wStatus]};margin-top:2px">${wStatus==='exceeded'?'Limit exceeded':'Near 30h limit'}</div>`
+                      : ''}
+                  </td>
                   <td class="td-muted text-sm">${Utils.formatDateShort(u.createdAt)}</td>
                   <td class="td-actions">
                     <div class="dropdown-actions">
@@ -229,7 +248,8 @@ const Views = {
                       <button class="btn btn-ghost btn-sm" onclick="App.toggleUserActive('${u.id}','${u.active}')">${u.active?'Deactivate':'Activate'}</button>
                     </div>
                   </td>
-                </tr>`).join('')}
+                </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>`
@@ -603,6 +623,61 @@ const Views = {
     </div>`;
   },
 
+  /* ── Weekly Hours Card ───────────────── */
+
+  _weeklyCard(logs) {
+    const breakdown  = Utils.getWeekBreakdown(logs);
+    const totalMin   = Utils.getWeekTotalMinutes(logs);
+    const status     = Utils.weekStatus(totalMin);
+    const limitMin   = 1800;  // 30h in minutes
+    const pct        = Math.min(100, Math.round((totalMin / limitMin) * 100));
+    const remaining  = Math.max(0, limitMin - totalMin);
+    const maxDayMin  = Math.max(480, ...breakdown.map(d => d.minutes)); // floor = 8h
+
+    const theme = {
+      normal:   { color: 'var(--green)',   bg: 'var(--green-bg)',   icon: '', msg: null },
+      caution:  { color: 'var(--accent)',  bg: 'var(--accent-light)', icon: 'ℹ', msg: `${Utils.formatDuration(remaining)} remaining until 30h limit.` },
+      warning:  { color: 'var(--orange)',  bg: 'var(--orange-bg)',  icon: '⚠', msg: `Close to 30h limit — only ${Utils.formatDuration(remaining)} left this week.` },
+      exceeded: { color: 'var(--red)',     bg: 'var(--red-bg)',     icon: '⚠', msg: `30h weekly limit reached. ${Utils.formatDuration(totalMin - limitMin)} over.` }
+    }[status];
+
+    return `
+    <div class="week-card">
+      <div class="week-header">
+        <span class="week-title">This Week</span>
+        <span class="week-range">${Utils.getWeekLabel()}</span>
+      </div>
+      <div class="week-days">
+        ${breakdown.map(day => {
+          const barW = day.minutes ? Math.round((day.minutes / maxDayMin) * 100) : 0;
+          const barColor = day.isToday ? 'var(--accent)' : 'var(--primary)';
+          return `
+          <div class="week-day${day.isToday ? ' today' : ''}${day.isFuture ? ' future' : ''}">
+            <span class="week-day-label">${day.label}</span>
+            <div class="week-bar-wrap">
+              <div class="week-bar" style="width:${barW}%;background:${barColor}"></div>
+            </div>
+            <span class="week-day-val">${day.minutes ? Utils.formatDuration(day.minutes) : day.isFuture ? '' : '—'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="week-footer">
+        <div class="week-total-row">
+          <div class="week-progress-wrap">
+            <div class="week-progress-fill" style="width:${pct}%;background:${theme.color}"></div>
+          </div>
+          <span class="week-total-label" style="color:${theme.color}">
+            ${Utils.formatDuration(totalMin)}<span class="week-limit-label"> / 30h</span>
+          </span>
+        </div>
+        ${theme.msg ? `
+        <div class="week-msg" style="background:${theme.bg};color:${theme.color}">
+          <span class="week-msg-icon">${theme.icon}</span>${theme.msg}
+        </div>` : ''}
+      </div>
+    </div>`;
+  },
+
   /* ── Admin Tab: Settings ─────────────── */
 
   _adminSettingsTab() {
@@ -681,9 +756,31 @@ const Views = {
       </div>
 
       ${connected ? `
-      <div class="alert alert-warning" style="margin-top:20px;font-size:.82rem;max-width:500px">
-        <strong>Security note:</strong> If your repository is public, the <code>.txt</code> files
-        are visible but remain AES-encrypted. For maximum privacy use a private repo.
+      <div class="card" style="max-width:500px;margin-top:24px">
+        <div class="card-body">
+          <div class="modal-section-title" style="margin-bottom:8px">Auto-configure for all employees</div>
+          <p class="text-sm text-muted" style="margin-bottom:16px;line-height:1.7">
+            Generate a <code>config.js</code> file with the GitHub connection embedded (encrypted).
+            Commit it to your repo once — every employee who visits the site will
+            automatically connect to GitHub with <strong>no manual setup</strong> on their end.
+          </p>
+          ${GitHub.isSharedConfig()
+            ? `<div class="alert alert-success" style="font-size:.82rem;margin-bottom:14px">
+                ✓ <strong>Shared config is active.</strong> Employees auto-connect via <code>config.js</code>.
+               </div>`
+            : `<div class="alert alert-warning" style="font-size:.82rem;margin-bottom:14px">
+                Employees visiting from other devices won't connect until you deploy <code>config.js</code>.
+               </div>`}
+          <button class="btn btn-primary btn-sm" onclick="App.generateConfig()">Download config.js</button>
+          <p class="text-xs text-muted" style="margin-top:10px;line-height:1.6">
+            After downloading: <code>git add js/config.js &amp;&amp; git commit -m "add shared config" &amp;&amp; git push</code>
+          </p>
+        </div>
+      </div>
+      <div class="alert alert-warning" style="margin-top:16px;font-size:.82rem;max-width:500px">
+        <strong>Security note:</strong> The token inside <code>config.js</code> is AES-encrypted
+        but is still accessible to anyone with repo access. Use a <strong>fine-grained token</strong>
+        scoped only to this repo with <em>Contents: Read &amp; write</em> only.
       </div>` : ''}
     </div>`;
   },

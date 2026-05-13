@@ -98,13 +98,69 @@ const Utils = {
       .replace(/"/g,'&quot;');
   },
 
-  /* ── Download JSON ──────────────────── */
+  /* ── Weekly Hours ───────────────────── */
+
+  getWeekStart(date) {
+    const d = date ? new Date(date) : new Date();
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  },
+
+  getWeekLabel() {
+    const s = this.getWeekStart();
+    const e = new Date(s); e.setDate(s.getDate() + 6);
+    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(s)} – ${fmt(e)}`;
+  },
+
+  getWeekBreakdown(logs) {
+    const start = this.getWeekStart();
+    const today = this.todayStr();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = d.toLocaleDateString('en-CA');
+      const minutes = logs
+        .filter(l => l.clockOut && l.clockIn.slice(0, 10) === dateStr)
+        .reduce((a, l) => a + (l.duration || 0), 0);
+      return {
+        label:    d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dateStr,
+        isToday:  dateStr === today,
+        isFuture: dateStr > today,
+        minutes
+      };
+    });
+  },
+
+  getWeekTotalMinutes(logs) {
+    const start = this.getWeekStart();
+    const end   = new Date(start); end.setDate(start.getDate() + 7);
+    return logs
+      .filter(l => l.clockOut && new Date(l.clockIn) >= start && new Date(l.clockIn) < end)
+      .reduce((a, l) => a + (l.duration || 0), 0);
+  },
+
+  weekStatus(totalMinutes) {
+    const h = totalMinutes / 60;
+    if (h >= 30) return 'exceeded';
+    if (h >= 25) return 'warning';
+    if (h >= 20) return 'caution';
+    return 'normal';
+  },
+
+  /* ── File download ──────────────────── */
 
   downloadJSON(data, filename) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    this.downloadFile(JSON.stringify(data, null, 2), filename, 'application/json');
+  },
+
+  downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType || 'text/plain' });
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = filename;
+    const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
   }

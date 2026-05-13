@@ -384,6 +384,26 @@ const App = {
     this.navigateTo('admin', { tab: 'settings' });
   },
 
+  generateConfig() {
+    const cfg = GitHub.getConfig();
+    if (!cfg) { this.toast('No GitHub config found. Connect first.', 'warning'); return; }
+    const encrypted = Crypto.encrypt(cfg);
+    const content =
+`// TimeKeeper — Shared GitHub Configuration
+// Generated: ${new Date().toISOString()}
+// ─────────────────────────────────────────
+// Commit this file to your repo (js/config.js).
+// Every employee who opens the site will auto-connect to
+// GitHub — no manual setup needed on their device.
+//
+// The token is AES-256 encrypted. Use a fine-grained token
+// scoped only to this repo with Contents: Read & write.
+const SHARED_GITHUB = '${encrypted}';
+`;
+    Utils.downloadFile(content, 'config.js', 'text/javascript');
+    this.toast('config.js downloaded — commit it to js/config.js in your repo.', 'success');
+  },
+
   disconnectGitHub() {
     GitHub.clearConfig();
     this.toast('GitHub integration disconnected.', 'info');

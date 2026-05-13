@@ -11,8 +11,22 @@ const GitHub = {
   /* ── Config ─────────────────────────────── */
 
   getConfig() {
+    // Priority 1 — shared config embedded in config.js (deployed by admin,
+    //              auto-used by every employee who visits the site)
+    if (typeof SHARED_GITHUB !== 'undefined' && SHARED_GITHUB) {
+      try {
+        const cfg = Crypto.decrypt(SHARED_GITHUB);
+        if (cfg && cfg.token) return cfg;
+      } catch {}
+    }
+    // Priority 2 — per-device config saved in this browser's localStorage
     const r = localStorage.getItem(this.CONFIG_KEY);
     return r ? Crypto.decrypt(r) : null;
+  },
+
+  isSharedConfig() {
+    if (typeof SHARED_GITHUB === 'undefined' || !SHARED_GITHUB) return false;
+    try { return !!(Crypto.decrypt(SHARED_GITHUB)?.token); } catch { return false; }
   },
 
   saveConfig(cfg) {
