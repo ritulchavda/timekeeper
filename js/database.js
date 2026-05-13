@@ -51,7 +51,7 @@ const DB = {
       this.write(this.K.USERS, [{
         id:           this.newId(),
         username:     'admin',
-        passwordHash: Crypto.hash('Admin@123'),
+        passwordHash: Crypto.hash('Tk@9271#Admin'),
         name:         'Administrator',
         role:         'admin',
         active:       true,

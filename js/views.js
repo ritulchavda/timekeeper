@@ -34,7 +34,7 @@ const Views = {
           <div id="login-error"></div>
           <button type="submit" class="btn btn-primary btn-full" style="margin-top:4px">Sign In</button>
         </form>
-        <p class="auth-footer">Default admin: <strong>admin</strong> / <strong>Admin@123</strong></p>
+        <p class="auth-footer">Contact your administrator for access.</p>
       </div>
     </div>`;
   },
