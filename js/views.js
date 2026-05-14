@@ -355,10 +355,14 @@ const Views = {
   /* ── Modal: Edit Log Entry ───────────── */
 
   editLogModal(log, users) {
-    const u       = users.find(u => u.id === log.userId);
-    const dateStr = log.clockIn.slice(0, 10);
-    const inTime  = log.clockIn.slice(11, 16);
-    const outTime = log.clockOut ? log.clockOut.slice(11, 16) : '';
+    const u        = users.find(u => u.id === log.userId);
+    // Use toDatetimeLocal so we get the time in the user's LOCAL timezone,
+    // not raw UTC (slicing the ISO string gives UTC which mismatches displayed times).
+    const inLocal  = Utils.toDatetimeLocal(log.clockIn);   // "YYYY-MM-DDTHH:MM" local
+    const dateStr  = inLocal.slice(0, 10);
+    const inTime   = inLocal.slice(11, 16);
+    const outLocal = log.clockOut ? Utils.toDatetimeLocal(log.clockOut) : '';
+    const outTime  = outLocal ? outLocal.slice(11, 16) : '';
     return `
     <div class="form-stack">
       <div class="alert alert-info" style="font-size:.82rem">
