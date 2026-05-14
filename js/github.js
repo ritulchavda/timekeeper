@@ -179,12 +179,23 @@ const GitHub = {
     for (const [lsKey, file] of Object.entries(map)) {
       const content = await this.readFile(file);
       if (!content) continue;
-      // Attempt decrypt — if it succeeds the file has real data
-      const data = Crypto.decrypt(content);
-      if (data !== null && Array.isArray(data)) {
-        localStorage.setItem(lsKey, content);   // store the raw encrypted string
+
+      const remoteData = Crypto.decrypt(content);
+      if (remoteData === null || !Array.isArray(remoteData)) continue;
+
+      // Safety: never overwrite real local data with an empty remote array.
+      // This prevents a race condition where DB.init() pushed [] to GitHub
+      // before real data was written, then loadAll() wiped localStorage on
+      // the next page load.
+      if (remoteData.length === 0) {
+        try {
+          const local = localStorage.getItem(lsKey);
+          const localData = local ? Crypto.decrypt(local) : null;
+          if (Array.isArray(localData) && localData.length > 0) continue;
+        } catch { /* fall through and use remote */ }
       }
-      // else: file still contains plain '[]' → leave localStorage alone
+
+      localStorage.setItem(lsKey, content);
     }
   },
 

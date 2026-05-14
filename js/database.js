@@ -46,8 +46,18 @@ const DB = {
 
   /* ── init ───────────────────────────── */
 
+  // Write to localStorage only — never push to GitHub.
+  // Used for empty placeholder collections so we don't overwrite real
+  // GitHub data with '[]' on first-run init.
+  _localOnly(key, data) {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, Crypto.encrypt(data));
+    }
+  },
+
   init() {
     if (!this.read(this.K.USERS)) {
+      // Admin account has real content → push to GitHub so other devices get it.
       this.write(this.K.USERS, [{
         id:           this.newId(),
         username:     'admin',
@@ -58,8 +68,11 @@ const DB = {
         createdAt:    new Date().toISOString()
       }]);
     }
-    if (!this.read(this.K.LOGS))     this.write(this.K.LOGS, []);
-    if (!this.read(this.K.DISPUTES)) this.write(this.K.DISPUTES, []);
+    // Empty placeholder arrays go to localStorage only.
+    // If we pushed [] to GitHub it would overwrite real log/dispute data
+    // the next time loadAll() runs on a fresh page load.
+    this._localOnly(this.K.LOGS, []);
+    this._localOnly(this.K.DISPUTES, []);
   },
 
   /* ── users ──────────────────────────── */
